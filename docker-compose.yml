@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    container_name: secure-cli
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=file:${DB_PATH}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - sqlite_data:/app/data
+
+volumes:
+  sqlite_data:
