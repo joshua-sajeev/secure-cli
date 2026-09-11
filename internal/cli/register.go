@@ -69,7 +69,8 @@ func Register(db *sql.DB, rl *readline.Instance) {
 
 	rl.SetPrompt("secure-cli [guest]> ")
 
-	if err := auth.Register(db, username, string(password)); err != nil {
+	_, err = auth.Register(db, username, string(password))
+	if err != nil {
 		fmt.Fprintf(rl, "Registration failed: %v\n", err)
 		return
 	}

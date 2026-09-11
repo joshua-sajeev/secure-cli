@@ -4,12 +4,14 @@ go 1.26.5
 
 require (
 	github.com/ergochat/readline v0.1.3
+	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/term v0.46.0
 	modernc.org/sqlite v1.58.0
 )
 
 require (
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

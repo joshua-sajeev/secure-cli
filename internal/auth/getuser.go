@@ -14,6 +14,8 @@ type UserDetails struct {
 	LastLogin      *time.Time
 	FailedAttempts int
 	LockedOut      bool
+	MFAEnabled     bool
+	TOTPSecret     string
 }
 
 // parseTimestamp parses various SQLite timestamp formats
@@ -23,11 +25,21 @@ func parseTimestamp(ts string) (time.Time, error) {
 	}
 
 	t, err := time.Parse(time.RFC3339, ts)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid timestamp %q: %w", ts, err)
+	if err == nil {
+		return t, nil
 	}
 
-	return t, nil
+	t, err = time.Parse("2006-01-02 15:04:05", ts)
+	if err == nil {
+		return t, nil
+	}
+
+	t, err = time.Parse("2006-01-02T15:04:05", ts)
+	if err == nil {
+		return t, nil
+	}
+
+	return time.Time{}, fmt.Errorf("invalid timestamp %q: %w", ts, err)
 }
 
 // GetUserDetails retrieves detailed information about a user by ID
@@ -37,6 +49,8 @@ func GetUserDetails(db *sql.DB, userID int64) (*UserDetails, error) {
 	var lastLoginStr sql.NullString
 	var failedAttempts int
 	var lockoutUntilStr sql.NullString
+	var totpSecret sql.NullString
+	var totpEnabled int
 
 	err := db.QueryRow(`
 		SELECT 
@@ -45,7 +59,9 @@ func GetUserDetails(db *sql.DB, userID int64) (*UserDetails, error) {
 			created_at, 
 			last_login,
 			failed_attempts,
-			lockout_until
+			lockout_until,
+			totp_secret,
+			totp_enabled
 		FROM users 
 		WHERE id = ?
 	`, userID).Scan(
@@ -55,6 +71,8 @@ func GetUserDetails(db *sql.DB, userID int64) (*UserDetails, error) {
 		&lastLoginStr,
 		&failedAttempts,
 		&lockoutUntilStr,
+		&totpSecret,
+		&totpEnabled,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -67,16 +85,16 @@ func GetUserDetails(db *sql.DB, userID int64) (*UserDetails, error) {
 		ID:             userID,
 		Username:       username,
 		FailedAttempts: failedAttempts,
+		MFAEnabled:     totpEnabled == 1,
+		TOTPSecret:     totpSecret.String,
 	}
 
-	// Parse created_at timestamp
 	createdAt, err := parseTimestamp(createdAtStr)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)
 	}
 	details.CreatedAt = createdAt
 
-	// Parse last_login if available
 	if lastLoginStr.Valid && lastLoginStr.String != "" {
 		lastLogin, err := parseTimestamp(lastLoginStr.String)
 		if err == nil {
@@ -84,7 +102,6 @@ func GetUserDetails(db *sql.DB, userID int64) (*UserDetails, error) {
 		}
 	}
 
-	// Check if user is locked out
 	if lockoutUntilStr.Valid && lockoutUntilStr.String != "" {
 		lockoutUntil, err := parseTimestamp(lockoutUntilStr.String)
 		if err == nil && lockoutUntil.After(time.Now()) {

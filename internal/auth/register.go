@@ -16,7 +16,10 @@ var (
 	ErrInvalidPassword    = errors.New("password cannot be empty")
 	ErrPasswordTooLong    = errors.New("password exceeds 72 bytes")
 	ErrUserExists         = errors.New("username already exists")
+	ErrUserAlreadyExists  = errors.New("username already exists")
+	ErrWeakPassword       = errors.New("password must be at least 8 characters long")
 	ErrInvalidCredentials = errors.New("invalid username or password")
+	ErrLockedOut         = errors.New("account is locked out due to too many failed attempts")
 )
 
 // CheckUsernameExists checks if a username is already registered in the database
@@ -30,17 +33,21 @@ func CheckUsernameExists(db *sql.DB, username string) (bool, error) {
 }
 
 // Register creates a new user account with username and password
-func Register(db *sql.DB, username, password string) error {
+func Register(db *sql.DB, username, password string) (int64, error) {
 	if username == "" {
-		return ErrInvalidUsername
+		return 0, ErrInvalidUsername
 	}
 
 	if password == "" {
-		return ErrInvalidPassword
+		return 0, ErrInvalidPassword
+	}
+
+	if len(password) < 8 {
+		return 0, ErrWeakPassword
 	}
 
 	if len([]byte(password)) > 72 {
-		return ErrPasswordTooLong
+		return 0, ErrPasswordTooLong
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword(
@@ -48,7 +55,7 @@ func Register(db *sql.DB, username, password string) error {
 		bcrypt.DefaultCost,
 	)
 	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+		return 0, fmt.Errorf("hash password: %w", err)
 	}
 
 	const query = `
@@ -56,15 +63,20 @@ func Register(db *sql.DB, username, password string) error {
 		VALUES (?, ?)
 	`
 
-	_, err = db.Exec(query, username, passwordHash)
-	if err == nil {
-		return nil
-	}
-	if sqliteErr, ok := errors.AsType[*sqlite.Error](err); ok {
-		if sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
-			return ErrUserExists
+	result, err := db.Exec(query, username, passwordHash)
+	if err != nil {
+		if sqliteErr, ok := errors.AsType[*sqlite.Error](err); ok {
+			if sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
+				return 0, ErrUserAlreadyExists
+			}
 		}
+		return 0, fmt.Errorf("create user: %w", err)
 	}
 
-	return fmt.Errorf("create user: %w", err)
+	userID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("get user id: %w", err)
+	}
+
+	return userID, nil
 }
