@@ -37,6 +37,8 @@ func main() {
 		readline.PcItem("login"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
+		readline.PcItem("whoami"),
+		readline.PcItem("logout"),
 	)
 
 	config := &readline.Config{
@@ -55,7 +57,7 @@ func main() {
 		}
 	}()
 
-	_, _ = fmt.Fprintln(rl, "Type 'help' or 'exit' to quit.")
+	_, _ = fmt.Fprintln(rl, "Type 'help' for available commands or 'exit' to quit.")
 
 	var currentUserID int64
 
@@ -85,7 +87,15 @@ func main() {
 			userID, err := cli.Login(database, rl)
 			if err == nil {
 				currentUserID = userID
+				fmt.Fprintln(rl, "")
 			}
+
+		case "whoami":
+			if currentUserID == 0 {
+				fmt.Fprintln(rl, "You are not logged in. Use 'login' to authenticate.")
+				continue
+			}
+			cli.WhoAmI(database, rl, currentUserID)
 
 		case "logout":
 			if currentUserID == 0 {
@@ -96,11 +106,7 @@ func main() {
 			fmt.Fprintln(rl, "Logged out successfully.")
 
 		case "help":
-			if currentUserID == 0 {
-				_, _ = fmt.Fprintln(rl, "Guest commands: register, login, help, exit")
-			} else {
-				_, _ = fmt.Fprintln(rl, "User commands: whoami, enable-2fa, disable-2fa, logout, help, exit")
-			}
+			showHelp(rl, currentUserID > 0)
 
 		case "exit":
 			_, _ = fmt.Fprintln(rl, "Goodbye!")
@@ -109,5 +115,32 @@ func main() {
 		default:
 			_, _ = fmt.Fprintf(rl, "Unknown command: %s\n", input)
 		}
+	}
+}
+
+// showHelp displays help message based on login state
+func showHelp(rl *readline.Instance, isLoggedIn bool) {
+	if !isLoggedIn {
+		fmt.Fprintln(rl, "")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "  Guest Commands")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "  register       Create a new account")
+		fmt.Fprintln(rl, "  login          Authenticate with username and password")
+		fmt.Fprintln(rl, "  help           Show this help message")
+		fmt.Fprintln(rl, "  exit           Quit the application")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "")
+	} else {
+		fmt.Fprintln(rl, "")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "  User Commands")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "  whoami         Display your account details")
+		fmt.Fprintln(rl, "  logout         End your current session")
+		fmt.Fprintln(rl, "  help           Show this help message")
+		fmt.Fprintln(rl, "  exit           Quit the application")
+		fmt.Fprintln(rl, "═════════════════════════════════════════")
+		fmt.Fprintln(rl, "")
 	}
 }

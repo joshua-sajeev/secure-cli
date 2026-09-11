@@ -1,5 +1,5 @@
 services:
-  app:
+  secure-cli:
     build: .
     container_name: secure-cli
     env_file:
